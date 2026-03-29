@@ -233,22 +233,6 @@ pub fn diff_working_tree(repo_path: &str) -> Result<Vec<FileDiffEntry>, String> 
     Ok(result)
 }
 
-pub fn get_file_at_commit(
-    repo_path: &str,
-    commit: &str,
-    file_path: &str,
-) -> Result<String, String> {
-    let repo = find_repo(repo_path)?;
-    let oid = repo.revparse_single(commit).map_err(|e| e.to_string())?;
-    let c = oid.as_commit().ok_or("Not a commit")?;
-    let tree = c.tree().map_err(|e| e.to_string())?;
-    let entry = tree
-        .get_path(Path::new(file_path))
-        .map_err(|e| format!("File not found in commit: {}", e))?;
-    let blob = repo.find_blob(entry.id()).map_err(|e| e.to_string())?;
-    Ok(String::from_utf8_lossy(blob.content()).to_string())
-}
-
 fn get_blob_content(repo: &Repository, oid: git2::Oid) -> String {
     if oid.is_zero() {
         return String::new();

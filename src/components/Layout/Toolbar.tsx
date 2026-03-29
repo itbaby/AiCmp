@@ -30,7 +30,7 @@ export function Toolbar() {
   };
 
   return (
-    <div className="h-9 flex items-center justify-between px-2 bg-[--bg-secondary] border-b border-[--border] select-none shrink-0">
+    <div className="h-9 flex items-center justify-between px-2 bg-[--bg-secondary] border-b border-gray-200 select-none shrink-0">
       <div className="flex items-center gap-2">
         <span className="text-xs font-semibold text-[--text-secondary] tracking-wide">AiCmp</span>
       </div>

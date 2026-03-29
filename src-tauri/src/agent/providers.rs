@@ -29,20 +29,6 @@ pub struct AiResponse {
     pub done: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct StreamChunk {
-    pub delta: String,
-    pub tool_calls: Option<Vec<PartialToolCall>>,
-    pub done: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PartialToolCall {
-    pub id: String,
-    pub name: String,
-    pub arguments: String,
-}
-
 #[derive(Clone)]
 pub enum Provider {
     OpenAI,

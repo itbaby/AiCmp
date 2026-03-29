@@ -1,4 +1,4 @@
-use crate::agent::providers::{create_provider, AiResponse, Message, ProviderConfig};
+use crate::agent::providers::{create_provider, Message, ProviderConfig};
 use crate::agent::tools::{execute_tool, get_all_tools};
 use serde::Serialize;
 use tauri::Emitter;
@@ -28,14 +28,8 @@ pub async fn run_agent_loop(
 ) -> Result<Vec<AgentEvent>, String> {
     let provider = create_provider(config);
     let tools = get_all_tools();
-    let tool_defs: Vec<crate::agent::providers::ToolDef> = tools
-        .iter()
-        .map(|t| crate::agent::providers::ToolDef {
-            name: t.name.clone(),
-            description: t.description.clone(),
-            parameters: t.parameters.clone(),
-        })
-        .collect();
+    let tool_defs: Vec<crate::agent::providers::ToolDef> =
+        tools.into_iter().map(Into::into).collect();
 
     let system_msg = Message {
         role: "system".to_string(),

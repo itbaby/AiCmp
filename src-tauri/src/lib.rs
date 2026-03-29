@@ -12,6 +12,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::file_ops::compare_files,
             commands::file_ops::read_file_content,
+            commands::file_ops::write_file_content,
             commands::dir_ops::compare_directories,
             commands::dir_ops::list_directory,
             commands::git_ops::get_repo_info,

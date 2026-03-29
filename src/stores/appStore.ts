@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 export interface DirEntry {
   relative_path: string;
@@ -23,6 +24,26 @@ export interface DirDiff {
   };
 }
 
+export interface DiffHunk {
+  old_start: number;
+  old_lines: number;
+  new_start: number;
+  new_lines: number;
+  changes: DiffChange[];
+}
+
+export interface DiffChange {
+  change_type: "equal" | "delete" | "insert";
+  old_line_index: number | null;
+  new_line_index: number | null;
+  content: string;
+}
+
+export interface FileDiff {
+  hunks: DiffHunk[];
+  stats: { insertions: number; deletions: number; unchanged: number };
+}
+
 export interface AiMessage {
   role: "user" | "assistant";
   content: string;
@@ -41,6 +62,7 @@ interface AppState {
   rightPath: string;
   leftContent: string;
   rightContent: string;
+  fileDiff: FileDiff | null;
   dirDiff: DirDiff | null;
   isComparing: boolean;
   error: string | null;
@@ -52,6 +74,9 @@ interface AppState {
   setView: (view: AppState["view"]) => void;
   compareFiles: (left: string, right: string) => Promise<void>;
   compareDirs: (left: string, right: string) => Promise<void>;
+  setLeftContent: (content: string) => void;
+  setRightContent: (content: string) => void;
+  saveContent: (side: "left" | "right", content: string) => Promise<void>;
   sendAiMessage: (msg: string) => void;
   setSettings: (s: Partial<AppSettings>) => void;
   toggleSettings: () => void;
@@ -74,12 +99,70 @@ export function getLanguageFromPath(path: string): string {
   return map[ext] || "plaintext";
 }
 
-export const useAppState = create<AppState>((set) => ({
+export function computeHunks(leftLines: string[], rightLines: string[]): DiffHunk[] {
+  const hunks: DiffHunk[] = [];
+  let li = 0, ri = 0;
+
+  while (li < leftLines.length || ri < rightLines.length) {
+    const changes: DiffChange[] = [];
+    const hunkOldStart = li;
+    const hunkNewStart = ri;
+
+    while (li < leftLines.length && ri < rightLines.length && leftLines[li] === rightLines[ri]) {
+      changes.push({ change_type: "equal", old_line_index: li, new_line_index: ri, content: leftLines[li] + "\n" });
+      li++; ri++;
+    }
+
+    while (li < leftLines.length && (ri >= rightLines.length || leftLines[li] !== rightLines[ri])) {
+      let found = false;
+      for (let k = ri; k < rightLines.length; k++) {
+        if (leftLines[li] === rightLines[k]) { found = true; break; }
+      }
+      if (found) break;
+      changes.push({ change_type: "delete", old_line_index: li, new_line_index: null, content: leftLines[li] + "\n" });
+      li++;
+    }
+
+    while (ri < rightLines.length && (li >= leftLines.length || leftLines[li] !== rightLines[ri])) {
+      let found = false;
+      for (let k = li; k < leftLines.length; k++) {
+        if (leftLines[k] === rightLines[ri]) { found = true; break; }
+      }
+      if (found) break;
+      changes.push({ change_type: "insert", old_line_index: null, new_line_index: ri, content: rightLines[ri] + "\n" });
+      ri++;
+    }
+
+    if (changes.length === 0) {
+      if (li < leftLines.length) { changes.push({ change_type: "delete", old_line_index: li, new_line_index: null, content: leftLines[li] + "\n" }); li++; }
+      else if (ri < rightLines.length) { changes.push({ change_type: "insert", old_line_index: null, new_line_index: ri, content: rightLines[ri] + "\n" }); ri++; }
+    }
+
+    let oldCount = 0, newCount = 0;
+    for (const c of changes) {
+      if (c.change_type === "equal" || c.change_type === "delete") oldCount++;
+      if (c.change_type === "equal" || c.change_type === "insert") newCount++;
+    }
+
+    hunks.push({
+      old_start: hunkOldStart,
+      old_lines: oldCount,
+      new_start: hunkNewStart,
+      new_lines: newCount,
+      changes,
+    });
+  }
+
+  return hunks;
+}
+
+export const useAppState = create<AppState>((set, get) => ({
   view: "empty",
   leftPath: "",
   rightPath: "",
   leftContent: "",
   rightContent: "",
+  fileDiff: null,
   dirDiff: null,
   isComparing: false,
   error: null,
@@ -102,12 +185,14 @@ export const useAppState = create<AppState>((set) => ({
         invoke<string>("read_file_content", { path: left }),
         invoke<string>("read_file_content", { path: right }),
       ]);
+      const hunks = computeHunks(leftContent.split("\n"), rightContent.split("\n"));
       set({
         view: "file",
         leftPath: left,
         rightPath: right,
         leftContent,
         rightContent,
+        fileDiff: { hunks, stats: { insertions: 0, deletions: 0, unchanged: 0 } },
         isComparing: false,
       });
     } catch (e: any) {
@@ -134,20 +219,51 @@ export const useAppState = create<AppState>((set) => ({
     }
   },
 
+  setLeftContent: (content) => set({ leftContent: content }),
+  setRightContent: (content) => set({ rightContent: content }),
+
+  saveContent: async (side, content) => {
+    const path = side === "left" ? get().leftPath : get().rightPath;
+    await invoke("write_file_content", { path, content });
+  },
+
   sendAiMessage: (msg) => {
     set((state) => ({
       aiMessages: [...state.aiMessages, { role: "user", content: msg }],
       aiLoading: true,
     }));
+
+    let unlisten: (() => void) | null = null;
+
+    listen<any>("ai-event", (event) => {
+      const payload = event.payload;
+      if (payload.type === "final_response") {
+        set((s) => ({
+          aiMessages: [...s.aiMessages, { role: "assistant", content: payload.content }],
+          aiLoading: false,
+        }));
+        unlisten?.();
+      } else if (payload.type === "thought" && payload.content) {
+        set((s) => {
+          const msgs = [...s.aiMessages];
+          const last = msgs[msgs.length - 1];
+          if (last?.role === "assistant") {
+            msgs[msgs.length - 1] = { ...last, content: last.content + payload.content };
+          } else {
+            msgs.push({ role: "assistant", content: payload.content });
+          }
+          return { aiMessages: msgs };
+        });
+      }
+    }).then((fn) => { unlisten = fn; });
+
     invoke("ai_chat", { message: msg })
-      .then(() => {
-        set({ aiLoading: false });
-      })
       .catch((e: any) => {
         set((s) => ({
           aiLoading: false,
           aiMessages: [...s.aiMessages, { role: "assistant", content: `Error: ${String(e)}` }],
         }));
+        unlisten?.();
       });
   },
 

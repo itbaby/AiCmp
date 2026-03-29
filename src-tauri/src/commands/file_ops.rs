@@ -17,3 +17,10 @@ pub async fn read_file_content(path: String) -> Result<String, String> {
         .await
         .map_err(|e| e.to_string())?
 }
+
+#[tauri::command]
+pub async fn write_file_content(path: String, content: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || std::fs::write(&path, content).map_err(|e| e.to_string()))
+        .await
+        .map_err(|e| e.to_string())?
+}

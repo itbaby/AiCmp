@@ -67,7 +67,7 @@ export function DirTree({ dirDiff, onSelectFile }: DirTreeProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Stats bar */}
-      <div className="flex items-center gap-4 px-3 py-1.5 bg-[--bg-secondary] border-b border-[--border] text-[11px] font-mono text-[--text-secondary] shrink-0">
+      <div className="flex items-center gap-4 px-3 py-1.5 bg-[--bg-secondary] border-b border-gray-200 text-[11px] font-mono text-[--text-secondary] shrink-0">
         <span>{stats.total_left} left</span>
         <span>{stats.total_right} right</span>
         <span className="text-[--green]">{stats.added} added</span>
@@ -80,12 +80,12 @@ export function DirTree({ dirDiff, onSelectFile }: DirTreeProps) {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter..."
-          className="w-40 px-2 py-0.5 bg-[--bg-surface] border border-[--border] rounded text-[--text-primary] text-[11px] font-mono outline-none focus:border-[--accent]"
+          className="w-40 px-2 py-0.5 bg-[--bg-surface] border border-gray-200 rounded text-[--text-primary] text-[11px] font-mono outline-none focus:border-[--accent]"
         />
       </div>
 
       {/* Header */}
-      <div className="grid grid-cols-[32px_1fr_80px_80px] gap-0 px-3 py-1 bg-[--bg-secondary] border-b border-[--border] text-[10px] font-mono text-[--text-secondary] uppercase tracking-wider shrink-0">
+      <div className="grid grid-cols-[32px_1fr_80px_80px] gap-0 px-3 py-1 bg-[--bg-secondary] border-b border-gray-200 text-[10px] font-mono text-[--text-secondary] uppercase tracking-wider shrink-0">
         <span></span>
         <span>Path</span>
         <span className="text-right">Left</span>
