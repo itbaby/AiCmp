@@ -124,6 +124,18 @@ fn list_commits_tool() -> ToolDef {
     )
 }
 
+fn apply_suggestion_tool() -> ToolDef {
+    ToolDef::new(
+        "apply_suggestion",
+        "Apply a suggestion by replacing the entire content of the left or right file in the diff view",
+        json!({
+            "side": { "type": "string", "enum": ["left", "right"], "description": "Which side to apply the change to" },
+            "content": { "type": "string", "description": "The full new content for that side" },
+        }),
+        vec!["side", "content"],
+    )
+}
+
 pub fn get_all_tools() -> Vec<ToolDef> {
     vec![
         compare_files_tool(),
@@ -134,6 +146,7 @@ pub fn get_all_tools() -> Vec<ToolDef> {
         read_file_tool(),
         list_branches_tool(),
         list_commits_tool(),
+        apply_suggestion_tool(),
     ]
 }
 
@@ -160,7 +173,9 @@ pub fn execute_tool(name: &str, args: &Value) -> Value {
                 std::path::Path::new(left),
                 std::path::Path::new(right),
             ) {
-                Ok(diff) => serde_json::to_value(diff).unwrap_or(json!({"error": "serialization failed"})),
+                Ok(diff) => {
+                    serde_json::to_value(diff).unwrap_or(json!({"error": "serialization failed"}))
+                }
                 Err(e) => json!({"error": e}),
             }
         }
@@ -169,14 +184,16 @@ pub fn execute_tool(name: &str, args: &Value) -> Value {
             let a = args["commit_a"].as_str().unwrap_or("");
             let b = args["commit_b"].as_str().unwrap_or("");
             match crate::git::diff_commits(repo, a, b) {
-                Ok(entries) => serde_json::to_value(entries).unwrap_or(json!({"error": "serialization failed"})),
+                Ok(entries) => serde_json::to_value(entries)
+                    .unwrap_or(json!({"error": "serialization failed"})),
                 Err(e) => json!({"error": e}),
             }
         }
         "compare_git_working_tree" => {
             let repo = args["repo_path"].as_str().unwrap_or("");
             match crate::git::diff_working_tree(repo) {
-                Ok(entries) => serde_json::to_value(entries).unwrap_or(json!({"error": "serialization failed"})),
+                Ok(entries) => serde_json::to_value(entries)
+                    .unwrap_or(json!({"error": "serialization failed"})),
                 Err(e) => json!({"error": e}),
             }
         }
@@ -210,7 +227,8 @@ pub fn execute_tool(name: &str, args: &Value) -> Value {
         "list_branches" => {
             let repo = args["repo_path"].as_str().unwrap_or("");
             match crate::git::list_branches(repo) {
-                Ok(branches) => serde_json::to_value(branches).unwrap_or(json!({"error": "serialization failed"})),
+                Ok(branches) => serde_json::to_value(branches)
+                    .unwrap_or(json!({"error": "serialization failed"})),
                 Err(e) => json!({"error": e}),
             }
         }
@@ -218,9 +236,13 @@ pub fn execute_tool(name: &str, args: &Value) -> Value {
             let repo = args["repo_path"].as_str().unwrap_or("");
             let count = args["count"].as_u64().unwrap_or(20) as usize;
             match crate::git::list_recent_commits(repo, None, count) {
-                Ok(commits) => serde_json::to_value(commits).unwrap_or(json!({"error": "serialization failed"})),
+                Ok(commits) => serde_json::to_value(commits)
+                    .unwrap_or(json!({"error": "serialization failed"})),
                 Err(e) => json!({"error": e}),
             }
+        }
+        "apply_suggestion" => {
+            json!({"status": "applied"})
         }
         _ => json!({"error": format!("Unknown tool: {}", name)}),
     }

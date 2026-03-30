@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { Toolbar } from "./components/Layout/Toolbar";
 import { DiffEditorView } from "./components/FileCompare/DiffEditor";
 import { DirTree } from "./components/DirCompare/DirTree";
@@ -18,12 +19,26 @@ export default function App() {
   const error = useAppState((s) => s.error);
   const settingsOpen = useAppState((s) => s.settingsOpen);
   const compareFiles = useAppState((s) => s.compareFiles);
+  const setLeftContent = useAppState((s) => s.setLeftContent);
+  const setRightContent = useAppState((s) => s.setRightContent);
 
   useEffect(() => {
     invoke<any>("load_settings").then((s) => {
       if (s) useAppState.getState().setSettings(s);
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<any>("ai-event", (e) => {
+      const p = e.payload;
+      if (p.type === "apply_suggestion") {
+        if (p.side === "left") setLeftContent(p.content);
+        else if (p.side === "right") setRightContent(p.content);
+      }
+    }).then((fn) => { unlisten = fn; });
+    return () => { unlisten?.(); };
+  }, [setLeftContent, setRightContent]);
 
   return (
     <div className="flex flex-col h-screen" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>

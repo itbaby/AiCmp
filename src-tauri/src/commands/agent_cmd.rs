@@ -5,7 +5,14 @@ use std::path::PathBuf;
 use tauri::Manager;
 
 #[tauri::command]
-pub async fn ai_chat(message: String, app: tauri::AppHandle) -> Result<(), String> {
+pub async fn ai_chat(
+    message: String,
+    left_content: Option<String>,
+    right_content: Option<String>,
+    left_path: Option<String>,
+    right_path: Option<String>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
     let path = app
         .path()
         .app_config_dir()
@@ -27,11 +34,22 @@ pub async fn ai_chat(message: String, app: tauri::AppHandle) -> Result<(), Strin
         model: settings.model,
     };
 
-    let context = AgentContext {
+    let mut context = AgentContext {
         working_directory: std::env::current_dir()
             .ok()
             .map(|p| p.to_string_lossy().to_string()),
+        left_content: None,
+        right_content: None,
+        left_path: None,
+        right_path: None,
     };
+
+    if left_content.is_some() && right_content.is_some() {
+        context.left_content = left_content;
+        context.right_content = right_content;
+        context.left_path = left_path;
+        context.right_path = right_path;
+    }
 
     let app_handle = app.clone();
     tokio::spawn(async move {

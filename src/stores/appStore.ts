@@ -233,6 +233,9 @@ export const useAppState = create<AppState>((set, get) => ({
       aiLoading: true,
     }));
 
+    const state = get();
+    const isFileView = state.view === "file" && state.leftContent && state.rightContent;
+
     let unlisten: (() => void) | null = null;
 
     listen<any>("ai-event", (event) => {
@@ -257,14 +260,21 @@ export const useAppState = create<AppState>((set, get) => ({
       }
     }).then((fn) => { unlisten = fn; });
 
-    invoke("ai_chat", { message: msg })
-      .catch((e: any) => {
-        set((s) => ({
-          aiLoading: false,
-          aiMessages: [...s.aiMessages, { role: "assistant", content: `Error: ${String(e)}` }],
-        }));
-        unlisten?.();
-      });
+    invoke("ai_chat", {
+      message: msg,
+      ...(isFileView ? {
+        leftContent: state.leftContent,
+        rightContent: state.rightContent,
+        leftPath: state.leftPath,
+        rightPath: state.rightPath,
+      } : {}),
+    }).catch((e: any) => {
+      set((s) => ({
+        aiLoading: false,
+        aiMessages: [...s.aiMessages, { role: "assistant", content: `Error: ${String(e)}` }],
+      }));
+       unlisten?.();
+    });
   },
 
   setSettings: (s) => {
